@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #87CEEB; /* Latar belakang biru langit */
+        }
+        #startContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4); /* Latar belakang gradien */
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            color: black;
+        }
+        #startButton:hover {
+            background-color: #ff9900;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #87CEEB; /* Latar belakang biru langit */
+        }
+        #gameOverContainer {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        #gameOverMessage {
+            font-size: 48px;
+            color: red;
+            margin-bottom: 20px;
+        }
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #restartButton:hover {
+            background-color: #ff9900;
+        }
+        #credits {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 16px;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="startContainer">
+        <button id="startButton">Start Game</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="gameOverContainer">
+        <div id="gameOverMessage">Game Over</div>
+        <div id="topScore">Top Score: 0</div>
+        <button id="restartButton">Coba Lagi</button>
+    </div>
+    <div id="credits">Gallskyy</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const gameOverContainer = document.getElementById('gameOverContainer');
+        const topScoreElement = document.getElementById('topScore');
+        const canvasWidth = window.innerWidth;
+        const canvasHeight = window.innerHeight;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        let bird, pipes, coins, pipeWidth, pipeGap, pipeSpeed, frameCount, score, coinCount, gameOver;
+        let topScore = localStorage.getItem('topScore') || 0;
+
+        function initializeGame() {
+            bird = {
+                x: 150,
+                y: canvasHeight / 2,
+                width: 30,
+                height: 20,
+                gravity: 0.6,
+                lift: -9,
+                velocity: 0
+            };
+
+            pipes = [];
+            coins = [];
+            pipeWidth = 50;
+            pipeGap = 150;
+            pipeSpeed = 2;
+            frameCount = 0;
+            score = 0;
+            coinCount = 0;
+            gameOver = false;
+
+            gameOverContainer.style.display = 'none';
+            canvas.style.display = 'block'; // Tampilkan canvas
+            document.getElementById('startContainer').style.display = 'none'; // Sembunyikan halaman start
+            updateBackground();
+            gameLoop();
+        }
+
+        function startGame() {
+            initializeGame();
+        }
+
+        function updateBackground() {
+            const now = new Date();
+            const hours = now.getHours();
+            let gradient;
+
+            if (hours >= 6 && hours < 12) {
+                // Morning
+                gradient = "linear-gradient(to bottom, #FFD700, #FF8C00)";
+            } else if (hours >= 12 && hours < 18) {
+                // Afternoon
+                gradient = "linear-gradient(to bottom, #87CEEB, #4682B4)";
+            } else if (hours >= 18 && hours < 20) {
+                // Evening
+                gradient = "linear-gradient(to bottom, #FF4500, #2E8B57)";
+            } else {
+                // Night
+                gradient = "linear-gradient(to bottom, #2C3E50, #000000)";
+            }
+
+            document.body.style.background = gradient;
+        }
+
+        function drawBird() {
+            ctx.fillStyle = 'yellow';
+            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+        }
+
+        function drawPipes() {
+            ctx.fillStyle = 'green';
+            pipes.forEach(pipe => {
+                ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+                ctx.fillRect(pipe.x, canvasHeight - pipe.bottom, pipeWidth, pipe.bottom);
+            });
+        }
+
+        function drawCoins() {
+            ctx.fillStyle = 'gold';
+            coins.forEach(coin => {
+                ctx.beginPath();
+                ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'black';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 30);
+            ctx.fillText(`Coins: ${coinCount}`, 10, 60);
+        }
+
+        function drawGameOver() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            gameOverContainer.style.display = 'block';
+            if (score > topScore) {
+                topScore = score;
+                localStorage.setItem('topScore', topScore);
+            }
+            topScoreElement.textContent = `Top Score: ${topScore}`;
+        }
+
+        function updateBird() {
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (bird.y + bird.height > canvasHeight) {
+                bird.y = canvasHeight - bird.height;
+                bird.velocity = 0;
+            }
+
+            if (bird.y < 0) {
+                bird.y = 0;
+                bird.velocity = 0;
+            }
+        }
+
+        function updatePipesAndCoins() {
+            if (frameCount % 90 === 0) {
+                const topPipeHeight = Math.random() * (canvasHeight - pipeGap - 100) + 50;
+                const bottomPipeHeight = canvasHeight - topPipeHeight - pipeGap;
+                pipes.push({
+                    x: canvasWidth,
+                    top: topPipeHeight,
+                    bottom: bottomPipeHeight
+                });
+
+                coins.push({
+                    x: canvasWidth + pipeWidth + Math.random() * 20,
+                    y: topPipeHeight + pipeGap / 2 + Math.random() * 40 - 20,
+                    radius: 10
+                });
+            }
+
+            pipes.forEach(pipe => {
+                pipe.x -= pipeSpeed;
+
+                if (pipe.x + pipeWidth < 0) {
+                    pipes.shift();
+                    score++;
+                }
+            });
+
+            coins.forEach((coin, index) => {
+                coin.x -= pipeSpeed;
+
+                if (coin.x + coin.radius < 0) {
+                    coins.splice(index, 1);
+                }
+
+                if (
+                    bird.x < coin.x + coin.radius &&
+                    bird.x + bird.width > coin.x - coin.radius &&
+                    bird.y < coin.y + coin.radius &&
+                    bird.y + bird.height > coin.y - coin.radius
+                ) {
+                    coins.splice(index, 1);
+                    coinCount++;
+                    score += 5;
+                }
+            });
+
+            if (pipes.length > 0) {
+                const closestPipe = pipes[0];
+                if (bird.x + bird.width > closestPipe.x &&
+                    bird.x < closestPipe.x + pipeWidth &&
+                    (bird.y < closestPipe.top || bird.y + bird.height > canvasHeight - closestPipe.bottom)) {
+                    gameOver = true;
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (gameOver) {
+                drawGameOver();
+                return;
+            }
+
+            frameCount++;
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            updateBird();
+            updatePipesAndCoins();
+
+            drawBird();
+            drawPipes();
+            drawCoins();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        canvas.addEventListener('click', () => {
+            if (!gameOver) {
+                bird.velocity = bird.lift;
+            }
+        });
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', initializeGame);
+    </script>
+</body>
+</html>
